@@ -49,8 +49,20 @@ const getH3ResForMapZoom = (mapZoom) => {
 };
 
 const h3BoundsToPolygon = (lngLatH3Bounds) => {
-    lngLatH3Bounds.push(lngLatH3Bounds[0]); // "close" the polygon
-    return lngLatH3Bounds;
+    const coordinates = lngLatH3Bounds.map(c => [c[0], c[1]]);
+    for (let i = 1; i < coordinates.length; i++) {
+        const prev = coordinates[i - 1];
+        const current = coordinates[i];
+        let lngDiff = current[1] - prev[1];
+
+        if (lngDiff < -180) {
+            current[1] += 360;
+        } else if (lngDiff > 180) {
+            current[1] -= 360;
+        }
+    }
+    coordinates.push(coordinates[0]); // "close" the polygon
+    return coordinates;
 };
 
 /**
@@ -205,10 +217,13 @@ var app = new Vue({
 
     mounted() {
         document.addEventListener("DOMContentLoaded", () => {
-            map = L.map('mapid');
+            const southWest = L.latLng(-90, -179.999);
+            const northEast = L.latLng(90, 179.999);
+            const bounds = L.latLngBounds(southWest, northEast);
+            map = L.map('mapid', { maxBounds: bounds });
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                minZoom: 5,
+                minZoom: 4,
                 maxNativeZoom: 19,
                 maxZoom: 24,
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
