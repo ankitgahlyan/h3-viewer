@@ -217,10 +217,13 @@ var app = new Vue({
 
     mounted() {
         document.addEventListener("DOMContentLoaded", () => {
-            map = L.map('mapid');
+            const southWest = L.latLng(-90, -179.999);
+            const northEast = L.latLng(90, 179.999);
+            const bounds = L.latLngBounds(southWest, northEast);
+            map = L.map('mapid', { maxBounds: bounds });
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                minZoom: 5,
+                minZoom: 4,
                 maxNativeZoom: 19,
                 maxZoom: 24,
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
