@@ -97,6 +97,7 @@ var app = new Vue({
         searchH3Id: undefined,
         gotoLatLon: undefined,
         currentH3Res: undefined,
+        useIntegerFormat: !!queryParams.useIntegerFormat,
 
     },
 
@@ -104,6 +105,26 @@ var app = new Vue({
     },
 
     methods: {
+
+        h3ToInteger: function(h3id) {
+            return BigInt('0x' + h3id).toString();
+        },
+
+        integerToH3: function(intStr) {
+            return BigInt(intStr).toString(16);
+        },
+
+        isIntegerFormat: function(str) {
+            return /^\d+$/.test(str);
+        },
+
+        normalizeH3Input: function(input) {
+            if (!input) return input;
+            if (this.isIntegerFormat(input)) {
+                return this.integerToH3(input);
+            }
+            return input;
+        },
 
         computeAverageEdgeLengthInMeters: function(vertexLocations) {
             let totalLength = 0;
@@ -151,17 +172,20 @@ var app = new Vue({
                 const h3Bounds = h3.cellToBoundary(h3id);
                 const averageEdgeLength = this.computeAverageEdgeLengthInMeters(h3Bounds);
                 const cellArea = h3.cellArea(h3id, "m2");
+                const h3idInt = this.h3ToInteger(h3id);
 
                 const tooltipText = `
-                Cell ID: <b>${ h3id }</b>
+                Cell ID (str): <b>${ h3id }</b>
+                <br />
+                Cell ID (int): <b>${ h3idInt }</b>
                 <br />
                 Average edge length (m): <b>${ averageEdgeLength.toLocaleString() }</b>
                 <br />
-                Cell area (m^2): <b>${ cellArea.toLocaleString() }</b>
+                Cell area (m²): <b>${ cellArea.toLocaleString() }</b>
                 `;
 
                 const h3Polygon = L.polygon(h3BoundsToPolygon(h3Bounds), style)
-                    .on('click', () => copyToClipboard(h3id))
+                    .on('click', () => copyToClipboard(this.useIntegerFormat ? h3idInt : h3id))
                     .bindTooltip(tooltipText)
                     .addTo(polygonLayer);
 
@@ -190,9 +214,11 @@ var app = new Vue({
         },
 
         findH3: function() {
-            if (!h3.isValidCell(this.searchH3Id)) {
+            const normalizedId = this.normalizeH3Input(this.searchH3Id);
+            if (!h3.isValidCell(normalizedId)) {
                 return;
             }
+            this.searchH3Id = normalizedId;
             const h3Boundary = h3.cellToBoundary(this.searchH3Id);
 
             let bounds = undefined;

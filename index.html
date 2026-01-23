@@ -46,7 +46,19 @@
                 <hr />
                 Current H3 resolution: <b>{{ currentH3Res }}</b>
                 <hr />
-                <small class="text-muted">Tip: Clicking an H3 cell will copy its id to the clipboard.</small>
+                <div>
+                    <small class="text-muted">Click an H3 cell to copy its id as:</small>
+                    <div class="mt-1">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="formatOptions" id="formatString" :value="false" v-model="useIntegerFormat">
+                            <label class="form-check-label" for="formatString"><small class="text-muted">String</small></label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="formatOptions" id="formatInteger" :value="true" v-model="useIntegerFormat">
+                            <label class="form-check-label" for="formatInteger"><small class="text-muted">Integer</small></label>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div>
