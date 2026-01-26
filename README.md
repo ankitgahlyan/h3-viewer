@@ -17,5 +17,4 @@ The link https://wolf-h3-viewer.glitch.me/?h3=8a589c98475ffff will highlight an 
 
 ## Other Tips
 
-Clicking on an H3 cell will copy its ID to the clipboard.
-
+Clicking on an H3 cell will copy its ID to the clipboard. The desired format (string or integer) can be selected in the top-right corner or using the URL parameter like https://wolf-h3-viewer.glitch.me/?useIntegerFormat=true.
