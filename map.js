@@ -147,14 +147,18 @@ var app = new Vue({
         currentLayer: queryParams.layer === 'satellite' ? 'satellite' : 'street',
         isToolboxPinned: false,
         isToolboxHovered: false,
+        showSettings: false,
+        cacheSizeText: 'Calculating...',
+        isClearingCache: false,
+        cacheClearedMessage: null,
     },
 
     computed: {
         isToolboxVisible: function() {
-            return this.isToolboxPinned || this.isToolboxHovered;
+            return this.isToolboxPinned || this.isToolboxHovered || this.showSettings;
         },
         isToolboxOpen: function() {
-            return this.isToolboxPinned || this.isToolboxHovered;
+            return this.isToolboxPinned || this.isToolboxHovered || this.showSettings;
         }
     },
 
@@ -171,6 +175,72 @@ var app = new Vue({
     },
 
     methods: {
+
+        openSettings: function() {
+            this.showSettings = true;
+            this.getCacheStats();
+        },
+
+        closeSettings: function() {
+            this.showSettings = false;
+        },
+
+        getCacheStats: async function() {
+            this.cacheSizeText = 'Calculating...';
+            if (!('caches' in window)) {
+                this.cacheSizeText = 'Not supported';
+                return;
+            }
+            try {
+                let tileCount = 0;
+                if (await caches.has('h3-viewer-tiles-v1')) {
+                    const cache = await caches.open('h3-viewer-tiles-v1');
+                    const keys = await cache.keys();
+                    tileCount = keys.length;
+                }
+
+                let usageText = '';
+                if (navigator.storage && navigator.storage.estimate) {
+                    const estimate = await navigator.storage.estimate();
+                    const bytes = estimate.usage || 0;
+                    if (bytes > 1024 * 1024) {
+                        usageText = (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                    } else if (bytes > 1024) {
+                        usageText = (bytes / 1024).toFixed(1) + ' KB';
+                    } else if (bytes > 0) {
+                        usageText = bytes + ' B';
+                    }
+                }
+
+                if (usageText) {
+                    this.cacheSizeText = `${usageText} (${tileCount.toLocaleString()} tiles)`;
+                } else {
+                    this.cacheSizeText = `${tileCount.toLocaleString()} tiles`;
+                }
+            } catch (err) {
+                this.cacheSizeText = 'Unavailable';
+            }
+        },
+
+        clearMapCache: async function() {
+            this.isClearingCache = true;
+            this.cacheClearedMessage = null;
+            try {
+                if ('caches' in window) {
+                    await caches.delete('h3-viewer-tiles-v1');
+                    await caches.open('h3-viewer-tiles-v1');
+                }
+                await this.getCacheStats();
+                this.cacheClearedMessage = 'Map cache cleared successfully!';
+                setTimeout(() => {
+                    this.cacheClearedMessage = null;
+                }, 4000);
+            } catch (err) {
+                this.cacheClearedMessage = 'Failed to clear cache: ' + (err.message || err);
+            } finally {
+                this.isClearingCache = false;
+            }
+        },
 
         toggleToolbox: function() {
             this.isToolboxPinned = !this.isToolboxPinned;

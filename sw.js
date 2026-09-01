@@ -1,7 +1,6 @@
-// Service Worker for H3 Viewer: Offline caching for app assets & map tiles (OpenStreetMap & Esri)
+// Service Worker for H3 Viewer: Unlimited offline caching for map tiles (OpenStreetMap & Esri) and app assets
 const CACHE_NAME = 'h3-viewer-app-v1';
 const TILE_CACHE_NAME = 'h3-viewer-tiles-v1';
-const MAX_TILE_ENTRIES = 4000;
 
 const STATIC_ASSETS = [
     './',
@@ -35,22 +34,10 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Helper to limit cache size
-async function trimCache(cacheName, maxItems) {
-    try {
-        const cache = await caches.open(cacheName);
-        const keys = await cache.keys();
-        if (keys.length > maxItems) {
-            await cache.delete(keys[0]);
-            trimCache(cacheName, maxItems);
-        }
-    } catch (e) {}
-}
-
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // 1. Map Tiles (OpenStreetMap & Esri World Imagery / Boundaries / Roads)
+    // 1. Map Tiles (OpenStreetMap & Esri World Imagery / Boundaries / Roads) - No size limit
     if (
         url.hostname.includes('tile.openstreetmap.org') ||
         url.hostname.includes('server.arcgisonline.com') ||
@@ -67,7 +54,6 @@ self.addEventListener('fetch', (event) => {
                     const networkResponse = await fetch(event.request);
                     if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
                         cache.put(event.request, networkResponse.clone());
-                        trimCache(TILE_CACHE_NAME, MAX_TILE_ENTRIES);
                     }
                     return networkResponse;
                 } catch (err) {

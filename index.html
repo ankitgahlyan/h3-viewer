@@ -44,9 +44,17 @@
                         <small class="font-weight-bold text-muted text-uppercase" style="letter-spacing: 0.5px;">
                             <i class="bi bi-hexagon-fill text-primary mr-1"></i> Uber H3 Viewer
                         </small>
-                        <button type="button" class="close text-secondary p-0" @click="closeToolbox" aria-label="Close" title="Hide">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+                        <div class="d-flex align-items-center">
+                            <button type="button" 
+                                    class="btn btn-sm btn-link text-secondary p-0 mr-2" 
+                                    @click="openSettings" 
+                                    title="Settings & Cache Management">
+                                <i class="bi bi-gear-fill" style="font-size: 1.05rem;"></i>
+                            </button>
+                            <button type="button" class="close text-secondary p-0" @click="closeToolbox" aria-label="Close" title="Hide">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
                     </div>
 
                     <button type="button" class="btn btn-outline-danger btn-block mb-2 d-flex align-items-center justify-content-center" @click="goToCurrentLocation" :disabled="isLocating" title="Get current location and show Level 9 H3 cell with red pin">
@@ -156,6 +164,58 @@
                                 <label class="form-check-label" for="formatInteger"><small class="text-muted">Integer</small></label>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings & Cache Modal -->
+            <div v-if="showSettings" class="settings-modal-backdrop" @click.self="closeSettings">
+                <div class="settings-modal-card shadow-lg">
+                    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                        <h6 class="mb-0 font-weight-bold text-dark">
+                            <i class="bi bi-gear-fill text-primary mr-1"></i> Settings
+                        </h6>
+                        <button type="button" class="close text-secondary" @click="closeSettings" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <!-- Map Cache Info -->
+                    <div class="mb-3">
+                        <label class="font-weight-bold text-muted small text-uppercase mb-1 d-block">Offline Map Cache</label>
+                        <div class="p-3 bg-light rounded border mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small font-weight-bold">Cached Data:</span>
+                                <span class="badge badge-primary font-weight-normal py-1 px-2" style="font-size: 0.85rem;">{{ cacheSizeText }}</span>
+                            </div>
+                            <small class="text-muted d-block">All visited street and satellite map layers are saved locally with no size limits for rapid, offline access.</small>
+                        </div>
+
+                        <div v-if="cacheClearedMessage" class="alert alert-success py-2 px-3 mb-2 small" role="alert">
+                            <i class="bi bi-check-circle-fill mr-1"></i> {{ cacheClearedMessage }}
+                        </div>
+
+                        <div class="d-flex">
+                            <button type="button" 
+                                    class="btn btn-outline-secondary btn-sm mr-2 flex-grow-1" 
+                                    @click="getCacheStats" 
+                                    title="Refresh cache size">
+                                <i class="bi bi-arrow-clockwise mr-1"></i> Refresh
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-danger btn-sm flex-grow-1" 
+                                    @click="clearMapCache" 
+                                    :disabled="isClearingCache" 
+                                    title="Clear all stored map tiles">
+                                <span v-if="isClearingCache" class="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>
+                                <i v-else class="bi bi-trash mr-1"></i>
+                                <span>{{ isClearingCache ? 'Clearing...' : 'Clear Map Cache' }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="text-right border-top pt-2">
+                        <button type="button" class="btn btn-secondary btn-sm px-3" @click="closeSettings">Close</button>
                     </div>
                 </div>
             </div>
