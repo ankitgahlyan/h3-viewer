@@ -1,4 +1,4 @@
-let map, hexLayer;
+let map, hexLayer, userMarkerLayer, streetLayer, satelliteLayer;
 
 const GeoUtils = {
     EARTH_RADIUS_METERS: 6371000,
@@ -90,21 +90,91 @@ const copyToClipboard = (text) => {
     document.body.removeChild(dummy);
 };
 
+const createLocationPinIcon = (color = "#dc3545") => {
+    return L.divIcon({
+        className: 'custom-location-pin',
+        html: `<div style="
+            position: relative;
+            transform: translate(-50%, -100%);
+            cursor: pointer;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+        ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">
+                <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M15 0C6.716 0 0 6.716 0 15c0 10.2 13.2 23.5 14.3 24.6.4.4 1 .4 1.4 0C16.8 38.5 30 25.2 30 15 30 6.716 23.284 0 15 0z"/>
+                <circle fill="#ffffff" cx="15" cy="14" r="5"/>
+                <circle fill="${color}" cx="15" cy="14" r="2.5"/>
+            </svg>
+        </div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+    });
+};
+
+const MIN_ZOOM_FOR_RES = {
+    0: 1,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 6,
+    6: 7,
+    7: 9,
+    8: 10,
+    9: 12,
+    10: 13,
+    11: 15,
+    12: 16,
+    13: 18,
+    14: 19,
+    15: 20
+};
+
 var app = new Vue({
     el: "#app",
 
     data: {
         searchH3Id: undefined,
+        searchPlusCode: undefined,
         gotoLatLon: undefined,
-        currentH3Res: undefined,
+        currentH3Res: 9,
+        sliderRes: 9,
         useIntegerFormat: !!queryParams.useIntegerFormat,
-
+        isLocating: false,
+        locationError: null,
+        isResLocked: queryParams.lockRes !== undefined ? (queryParams.lockRes === '1' || queryParams.lockRes === 'true') : true,
+        lockedRes: 9,
+        tooManyCells: false,
+        currentLayer: queryParams.layer === 'satellite' ? 'satellite' : 'street',
     },
 
     computed: {
     },
 
+    watch: {
+        useIntegerFormat: function(newVal) {
+            if (this.searchH3Id) {
+                if (newVal && !this.isIntegerFormat(this.searchH3Id)) {
+                    this.searchH3Id = this.h3ToInteger(this.searchH3Id);
+                } else if (!newVal && this.isIntegerFormat(this.searchH3Id)) {
+                    this.searchH3Id = this.integerToH3(this.searchH3Id);
+                }
+            }
+        }
+    },
+
     methods: {
+
+        setMapLayer: function(layerName) {
+            if (!map) return;
+            this.currentLayer = layerName;
+            if (layerName === 'satellite') {
+                if (map.hasLayer(streetLayer)) map.removeLayer(streetLayer);
+                if (!map.hasLayer(satelliteLayer)) satelliteLayer.addTo(map);
+            } else {
+                if (map.hasLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
+                if (!map.hasLayer(streetLayer)) streetLayer.addTo(map);
+            }
+        },
 
         h3ToInteger: function(h3id) {
             return BigInt('0x' + h3id).toString();
@@ -124,6 +194,46 @@ var app = new Vue({
                 return this.integerToH3(input);
             }
             return input;
+        },
+
+        onCellClick: function(h3id, h3idInt) {
+            const copyVal = this.useIntegerFormat ? h3idInt : h3id;
+            copyToClipboard(copyVal);
+
+            // Auto-fill search boxes for clicked cell
+            this.searchH3Id = copyVal;
+
+            const [lat, lng] = h3.cellToLatLng(h3id);
+            this.gotoLatLon = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+            if (typeof OpenLocationCode !== "undefined") {
+                try {
+                    const olc = new OpenLocationCode();
+                    this.searchPlusCode = olc.encode(lat, lng, 10);
+                } catch (e) {}
+            }
+
+            this.updateMapDisplay();
+        },
+
+        onSliderInput: function() {
+            this.isResLocked = true;
+            this.lockedRes = parseInt(this.sliderRes, 10);
+            this.currentH3Res = this.lockedRes;
+            this.updateMapDisplay();
+        },
+
+        toggleResLock: function() {
+            this.isResLocked = !this.isResLocked;
+            if (this.isResLocked) {
+                this.lockedRes = parseInt(this.sliderRes, 10);
+                this.currentH3Res = this.lockedRes;
+            } else {
+                const zoom = map ? map.getZoom() : 5;
+                this.currentH3Res = getH3ResForMapZoom(zoom);
+                this.sliderRes = this.currentH3Res;
+            }
+            this.updateMapDisplay();
         },
 
         computeAverageEdgeLengthInMeters: function(vertexLocations) {
@@ -147,7 +257,13 @@ var app = new Vue({
             hexLayer = L.layerGroup().addTo(map);
 
             const zoom = map.getZoom();
-            this.currentH3Res = getH3ResForMapZoom(zoom);
+            if (this.isResLocked) {
+                this.currentH3Res = this.lockedRes ?? 9;
+                this.sliderRes = this.currentH3Res;
+            } else {
+                this.currentH3Res = getH3ResForMapZoom(zoom);
+                this.sliderRes = this.currentH3Res;
+            }
             const { _southWest: sw, _northEast: ne} = map.getBounds();
 
             const boundsPolygon =[
@@ -158,26 +274,66 @@ var app = new Vue({
                 [ sw.lat, sw.lng ],
             ];
 
-            const h3s = h3.polygonToCells(boundsPolygon, this.currentH3Res);
+            let h3s = [];
+            this.tooManyCells = false;
+
+            const minZoom = MIN_ZOOM_FOR_RES[this.currentH3Res] ?? 1;
+            // When locked to a high resolution, prevent browser freezing if zoomed out too far
+            if (this.isResLocked && zoom < minZoom) {
+                this.tooManyCells = true;
+            } else {
+                try {
+                    h3s = h3.polygonToCells(boundsPolygon, this.currentH3Res);
+                    if (h3s.length > 2500) {
+                        this.tooManyCells = true;
+                        h3s = h3s.slice(0, 2500);
+                    }
+                } catch (err) {
+                    this.tooManyCells = true;
+                    h3s = [];
+                }
+            }
+
+            // If a searched/located cell exists, ensure it is rendered even if viewport is wide
+            const normalizedSearchId = this.normalizeH3Input(this.searchH3Id);
+            if (normalizedSearchId && !h3s.includes(normalizedSearchId) && h3.isValidCell(normalizedSearchId) && h3.getResolution(normalizedSearchId) === this.currentH3Res) {
+                h3s.push(normalizedSearchId);
+            }
 
             for (const h3id of h3s) {
 
                 const polygonLayer = L.layerGroup()
                     .addTo(hexLayer);
 
-                const isSelected = h3id === this.searchH3Id;
+                const isSelected = h3id === normalizedSearchId;
 
-                const style = isSelected ? { fillColor: "orange" } : {};
+                const style = isSelected ? {
+                    fillColor: "green",
+                    fillOpacity: 0.30,
+                    color: "#16a34a",
+                    weight: 3,
+                    opacity: 0.95
+                } : {};
 
                 const h3Bounds = h3.cellToBoundary(h3id);
                 const averageEdgeLength = this.computeAverageEdgeLengthInMeters(h3Bounds);
                 const cellArea = h3.cellArea(h3id, "m2");
                 const h3idInt = this.h3ToInteger(h3id);
 
+                let plusCodeLine = "";
+                if (typeof OpenLocationCode !== "undefined") {
+                    try {
+                        const [cLat, cLng] = h3.cellToLatLng(h3id);
+                        const cellPlusCode = (new OpenLocationCode()).encode(cLat, cLng, 10);
+                        plusCodeLine = `<br />Plus Code: <b>${cellPlusCode}</b>`;
+                    } catch(e) {}
+                }
+
                 const tooltipText = `
                 Cell ID (str): <b>${ h3id }</b>
                 <br />
                 Cell ID (int): <b>${ h3idInt }</b>
+                ${ plusCodeLine }
                 <br />
                 Average edge length (m): <b>${ averageEdgeLength.toLocaleString() }</b>
                 <br />
@@ -185,7 +341,7 @@ var app = new Vue({
                 `;
 
                 const h3Polygon = L.polygon(h3BoundsToPolygon(h3Bounds), style)
-                    .on('click', () => copyToClipboard(this.useIntegerFormat ? h3idInt : h3id))
+                    .on('click', () => this.onCellClick(h3id, h3idInt))
                     .bindTooltip(tooltipText)
                     .addTo(polygonLayer);
 
@@ -202,7 +358,17 @@ var app = new Vue({
         },
 
         gotoLocation: function() {
-            const [lat, lon] = (this.gotoLatLon || "").split(",").map(Number);
+            const input = (this.gotoLatLon || "").trim();
+            if (!input) return;
+
+            // If user entered a Plus Code into the coordinate box, delegate to findPlusCode
+            if (input.includes("+")) {
+                this.searchPlusCode = input;
+                this.findPlusCode();
+                return;
+            }
+
+            const [lat, lon] = input.split(",").map(Number);
             if (Number.isFinite(lat) && Number.isFinite(lon)
                 && lat <= 90 && lat >= -90 && lon <= 180 && lon >= -180) {
                 map.setView(
@@ -210,6 +376,153 @@ var app = new Vue({
                     undefined, // don't change zoom level
                     { animate: true }
                 );
+            }
+        },
+
+        goToCurrentLocation: function() {
+            if (!navigator.geolocation) {
+                this.locationError = "Geolocation is not supported by your browser.";
+                return;
+            }
+
+            this.isLocating = true;
+            this.locationError = null;
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    this.isLocating = false;
+                    const { latitude, longitude, accuracy } = position.coords;
+                    this.gotoLatLon = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+                    // Calculate Level 9 H3 cell for current location
+                    const h3Id = h3.latLngToCell(latitude, longitude, 9);
+                    this.searchH3Id = h3Id;
+                    this.sliderRes = 9;
+                    this.lockedRes = 9;
+                    this.isResLocked = true;
+
+                    // Encode user's Plus Code if OpenLocationCode is available
+                    let plusCodeText = "";
+                    if (typeof OpenLocationCode !== "undefined") {
+                        try {
+                            const olc = new OpenLocationCode();
+                            this.searchPlusCode = olc.encode(latitude, longitude, 10);
+                            plusCodeText = `<br>Plus Code: <code>${this.searchPlusCode}</code>`;
+                        } catch (e) {}
+                    }
+
+                    // Navigate to the H3 cell and set zoom
+                    this.findH3();
+
+                    // Render RED location pin and accuracy circle for current location
+                    if (userMarkerLayer) {
+                        userMarkerLayer.clearLayers();
+                    } else {
+                        userMarkerLayer = L.layerGroup().addTo(map);
+                    }
+
+                    const accuracyCircle = L.circle([latitude, longitude], {
+                        radius: accuracy || 25,
+                        fillColor: "#dc3545",
+                        color: "#dc3545",
+                        weight: 1,
+                        opacity: 0.35,
+                        fillOpacity: 0.1
+                    });
+
+                    const marker = L.marker([latitude, longitude], {
+                        icon: createLocationPinIcon("#dc3545")
+                    }).bindTooltip(`<b>Current Location</b><br>Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}${plusCodeText}<br>H3 (Res 9): <code>${h3Id}</code>`, { direction: 'top', offset: [0, -40] });
+
+                    userMarkerLayer.addLayer(accuracyCircle);
+                    userMarkerLayer.addLayer(marker);
+                },
+                (error) => {
+                    this.isLocating = false;
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            this.locationError = "Location permission was denied. Please enable location permissions in your browser settings.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            this.locationError = "Location information is unavailable.";
+                            break;
+                        case error.TIMEOUT:
+                            this.locationError = "Location request timed out. Please try again.";
+                            break;
+                        default:
+                            this.locationError = "Unable to retrieve location: " + (error.message || "Unknown error");
+                            break;
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        },
+
+        findPlusCode: function() {
+            if (!this.searchPlusCode || !this.searchPlusCode.trim()) return;
+            const code = this.searchPlusCode.trim();
+
+            if (typeof OpenLocationCode === "undefined") {
+                this.locationError = "Plus Code library not loaded yet. Please try again.";
+                return;
+            }
+
+            const olc = new OpenLocationCode();
+            let fullCode = code;
+
+            if (olc.isShort(code)) {
+                const center = map ? map.getCenter() : { lat: 0, lng: 0 };
+                try {
+                    fullCode = olc.recoverNearest(code, center.lat, center.lng);
+                } catch (e) {
+                    this.locationError = `Could not recover short Plus Code: "${code}". Please enter a full Plus Code (e.g. 849VQHFJ+X6).`;
+                    return;
+                }
+            }
+
+            if (!olc.isFull(fullCode)) {
+                this.locationError = `Invalid Plus Code: "${code}". Example format: 87G8Q222+ or 849VQHFJ+X6`;
+                return;
+            }
+
+            try {
+                this.locationError = null;
+                const codeArea = olc.decode(fullCode);
+                const lat = codeArea.latitudeCenter;
+                const lng = codeArea.longitudeCenter;
+
+                this.gotoLatLon = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+                const targetRes = this.isResLocked ? (this.lockedRes ?? 9) : (this.currentH3Res ?? 9);
+                const h3Id = h3.latLngToCell(lat, lng, targetRes);
+                this.searchH3Id = h3Id;
+
+                const bounds = L.latLngBounds(
+                    [codeArea.latitudeLo, codeArea.longitudeLo],
+                    [codeArea.latitudeHi, codeArea.longitudeHi]
+                );
+
+                map.fitBounds(bounds, { maxZoom: H3_RES_TO_ZOOM_CORRESPONDENCE[targetRes] ?? 16 });
+
+                // Add pin for Plus Code location
+                if (userMarkerLayer) {
+                    userMarkerLayer.clearLayers();
+                } else {
+                    userMarkerLayer = L.layerGroup().addTo(map);
+                }
+
+                const marker = L.marker([lat, lng], {
+                    icon: createLocationPinIcon("#17a2b8")
+                }).bindTooltip(`<b>Plus Code: ${fullCode}</b><br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}<br>H3 (Res ${targetRes}): <code>${h3Id}</code>`, { direction: 'top', offset: [0, -40] });
+
+                userMarkerLayer.addLayer(marker);
+                this.updateMapDisplay();
+            } catch (err) {
+                this.locationError = "Error decoding Plus Code: " + (err.message || err);
             }
         },
 
@@ -223,7 +536,7 @@ var app = new Vue({
 
             let bounds = undefined;
 
-            for ([lat, lng] of h3Boundary) {
+            for (const [lat, lng] of h3Boundary) {
                 if (bounds === undefined) {
                     bounds = new L.LatLngBounds([lat, lng], [lat, lng]);
                 } else {
@@ -248,12 +561,25 @@ var app = new Vue({
             const bounds = L.latLngBounds(southWest, northEast);
             map = L.map('mapid', { maxBounds: bounds });
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                minZoom: 4,
+            streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                minZoom: 2,
                 maxNativeZoom: 19,
                 maxZoom: 24,
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
-            }).addTo(map);
+            });
+
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                minZoom: 2,
+                maxNativeZoom: 19,
+                maxZoom: 24,
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            });
+
+            if (this.currentLayer === 'satellite') {
+                satelliteLayer.addTo(map);
+            } else {
+                streetLayer.addTo(map);
+            }
             pointsLayer = L.layerGroup([]).addTo(map);
 
             const initialLat = queryParams.lat ?? 0;
@@ -264,10 +590,15 @@ var app = new Vue({
             map.on("moveend", this.updateMapDisplay);
 
             const { h3 } = queryParams;
-            console.log(h3)
             if (h3) {
                 this.searchH3Id = h3;
                 window.setTimeout(() => this.findH3(), 50);
+            }
+
+            const plusCode = queryParams.pluscode || queryParams.plusCode || queryParams.olc;
+            if (plusCode) {
+                this.searchPlusCode = plusCode;
+                window.setTimeout(() => this.findPlusCode(), 50);
             }
 
             this.updateMapDisplay();
