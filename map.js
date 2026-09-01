@@ -145,9 +145,17 @@ var app = new Vue({
         lockedRes: 9,
         tooManyCells: false,
         currentLayer: queryParams.layer === 'satellite' ? 'satellite' : 'street',
+        isToolboxPinned: false,
+        isToolboxHovered: false,
     },
 
     computed: {
+        isToolboxVisible: function() {
+            return this.isToolboxPinned || this.isToolboxHovered;
+        },
+        isToolboxOpen: function() {
+            return this.isToolboxPinned || this.isToolboxHovered;
+        }
     },
 
     watch: {
@@ -163,6 +171,19 @@ var app = new Vue({
     },
 
     methods: {
+
+        toggleToolbox: function() {
+            this.isToolboxPinned = !this.isToolboxPinned;
+        },
+
+        closeToolbox: function() {
+            this.isToolboxPinned = false;
+            this.isToolboxHovered = false;
+        },
+
+        onToolboxHover: function(state) {
+            this.isToolboxHovered = state;
+        },
 
         setMapLayer: function(layerName) {
             if (!map) return;
@@ -605,6 +626,22 @@ var app = new Vue({
             map.setView([initialLat, initialLng], initialZoom);
             map.on("zoomend", this.updateMapDisplay);
             map.on("moveend", this.updateMapDisplay);
+            map.on("click", () => {
+                if (window.innerWidth <= 768) {
+                    this.closeToolbox();
+                }
+            });
+
+            // Register Service Worker for Map Tile and Asset Caching
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./sw.js').then((registration) => {
+                        console.log('H3 Viewer ServiceWorker registered:', registration.scope);
+                    }).catch((error) => {
+                        console.warn('H3 Viewer ServiceWorker registration failed:', error);
+                    });
+                });
+            }
 
             const { h3 } = queryParams;
             if (h3) {

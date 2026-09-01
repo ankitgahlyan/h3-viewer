@@ -1,29 +1,113 @@
 html, body {
     height: 100%;
+    height: 100dvh;
+    width: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .fillScreen {
     background-color: #808080;
     width: 100%;
     height: 100%;
+    height: 100dvh;
 }
 
-.toolbox {
+/* Floating Toolbox Container */
+.toolbox-container {
     position: fixed;
-    width: 280px;
-    max-width: calc(100vw - 32px);
-    top: 16px;
-    right: 16px;
-    border: 1px solid #ccc;
-    background-color: rgba(255, 255, 255, 0.95);
+    top: 14px;
+    right: 14px;
     z-index: 1000;
-    padding: 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: auto;
+}
+
+/* Floating Toggle Button */
+.toolbox-toggle-btn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 50px;
+    padding: 7px 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #333333;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.toolbox-toggle-btn:hover, .toolbox-toggle-btn:focus {
+    background: #f8f9fa;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    transform: translateY(-1px);
+}
+
+.toolbox-toggle-btn:active {
+    transform: translateY(1px);
+}
+
+/* Toolbox Popup Card */
+.toolbox-card {
+    width: 300px;
+    max-width: calc(100vw - 28px);
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    padding: 14px;
+    margin-top: 8px;
+    max-height: calc(100dvh - 75px);
     overflow-y: auto;
+    animation: toolboxSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toolboxSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Mobile-First Adaptations */
+@media (max-width: 576px) {
+    .toolbox-container {
+        top: 8px;
+        right: 8px;
+    }
+
+    .toolbox-card {
+        width: calc(100vw - 16px);
+        max-height: calc(100dvh - 65px);
+        padding: 12px;
+        border-radius: 10px;
+    }
+
+    .leaflet-top.leaflet-left {
+        top: 8px;
+        left: 8px;
+    }
+
+    .form-control, .btn {
+        font-size: 0.9rem;
+    }
 }
 
 .h3Text {

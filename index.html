@@ -3,7 +3,7 @@
     <head>
         <title>Uber H3 Viewer</title>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <meta name="referrer" content="never">
         <meta name="referrer" content="no-referrer">
         <link rel="shortcut icon" type="image/png" href="./hex.png"/>
@@ -23,112 +23,138 @@
 
             <div id="mapid" class="fillScreen"></div>
 
-            <div class="toolbox">
-                <button type="button" class="btn btn-outline-danger btn-block mb-2 d-flex align-items-center justify-content-center" @click="goToCurrentLocation" :disabled="isLocating" title="Get current location and show Level 9 H3 cell with red pin">
-                    <span v-if="isLocating" class="spinner-border spinner-border-sm mr-2 text-danger" role="status" aria-hidden="true"></span>
-                    <i v-else class="bi bi-geo-alt-fill text-danger mr-2"></i>
-                    <span>{{ isLocating ? 'Locating...' : 'My Location (Res 9)' }}</span>
+            <div class="toolbox-container" 
+                 @mouseenter="onToolboxHover(true)" 
+                 @mouseleave="onToolboxHover(false)">
+
+                <!-- Floating Toggle Pill Button -->
+                <button type="button" 
+                        class="toolbox-toggle-btn" 
+                        @click="toggleToolbox" 
+                        :title="isToolboxOpen ? 'Collapse Controls' : 'Show Controls'">
+                    <i class="bi" :class="isToolboxOpen ? 'bi-x-lg text-danger' : 'bi-sliders text-primary'"></i>
+                    <span class="d-none d-sm-inline font-weight-bold">{{ isToolboxOpen ? 'Close' : 'Controls' }}</span>
+                    <span class="badge badge-primary badge-pill">L{{ currentH3Res }}</span>
+                    <span class="badge badge-secondary badge-pill">{{ currentLayer === 'satellite' ? 'Sat' : 'Map' }}</span>
                 </button>
 
-                <!-- Map Layer Switcher -->
-                <div class="btn-group btn-group-sm btn-block mb-3" role="group" aria-label="Map Layer Selection">
-                    <button type="button" 
-                            class="btn" 
-                            :class="currentLayer === 'street' ? 'btn-primary' : 'btn-outline-secondary'" 
-                            @click="setMapLayer('street')">
-                        <i class="bi bi-map mr-1"></i> Street
-                    </button>
-                    <button type="button" 
-                            class="btn" 
-                            :class="currentLayer === 'satellite' ? 'btn-primary' : 'btn-outline-secondary'" 
-                            @click="setMapLayer('satellite')">
-                        <i class="bi bi-globe mr-1"></i> Satellite
-                    </button>
-                </div>
-
-                <div v-if="locationError" class="alert alert-danger alert-dismissible fade show p-2 mb-3" role="alert" style="font-size: 0.82rem;">
-                    {{ locationError }}
-                    <button type="button" class="close p-1 pr-2" @click="locationError = null" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-
-                <form id="goto-coords" v-on:submit.prevent="gotoLocation" class="mb-2">
-                    <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" v-model="gotoLatLon" placeholder="lat,lon" />
-                        <div class="input-group-append">
-                            <button type="submit" class="btn btn-primary" title="Go to coordinates">Go</button>
-                        </div>
+                <!-- Floating Card with auto-hide / hover / click show -->
+                <div class="toolbox-card" v-show="isToolboxVisible">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <small class="font-weight-bold text-muted text-uppercase" style="letter-spacing: 0.5px;">
+                            <i class="bi bi-hexagon-fill text-primary mr-1"></i> Uber H3 Viewer
+                        </small>
+                        <button type="button" class="close text-secondary p-0" @click="closeToolbox" aria-label="Close" title="Hide">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
                     </div>
-                </form>
 
-                <form id="goto-pluscode" v-on:submit.prevent="findPlusCode" class="mb-2">
-                    <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" v-model="searchPlusCode" placeholder="Plus Code (e.g. 87G8Q222+)" />
-                        <div class="input-group-append">
-                            <button type="submit" class="btn btn-primary" title="Find Plus Code">Find</button>
-                        </div>
+                    <button type="button" class="btn btn-outline-danger btn-block mb-2 d-flex align-items-center justify-content-center" @click="goToCurrentLocation" :disabled="isLocating" title="Get current location and show Level 9 H3 cell with red pin">
+                        <span v-if="isLocating" class="spinner-border spinner-border-sm mr-2 text-danger" role="status" aria-hidden="true"></span>
+                        <i v-else class="bi bi-geo-alt-fill text-danger mr-2"></i>
+                        <span>{{ isLocating ? 'Locating...' : 'My Location (Res 9)' }}</span>
+                    </button>
+
+                    <!-- Map Layer Switcher -->
+                    <div class="btn-group btn-group-sm btn-block mb-3" role="group" aria-label="Map Layer Selection">
+                        <button type="button" 
+                                class="btn" 
+                                :class="currentLayer === 'street' ? 'btn-primary' : 'btn-outline-secondary'" 
+                                @click="setMapLayer('street')">
+                            <i class="bi bi-map mr-1"></i> Street
+                        </button>
+                        <button type="button" 
+                                class="btn" 
+                                :class="currentLayer === 'satellite' ? 'btn-primary' : 'btn-outline-secondary'" 
+                                @click="setMapLayer('satellite')">
+                            <i class="bi bi-globe mr-1"></i> Satellite
+                        </button>
                     </div>
-                </form>
 
-                <form id="goto-h3" v-on:submit.prevent="findH3" class="mb-2">
-                    <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" v-model="searchH3Id" placeholder="valid H3 id" />
-                        <div class="input-group-append">
-                            <button type="submit" class="btn btn-primary" title="Find H3 cell">Find</button>
-                        </div>
+                    <div v-if="locationError" class="alert alert-danger alert-dismissible fade show p-2 mb-3" role="alert" style="font-size: 0.82rem;">
+                        {{ locationError }}
+                        <button type="button" class="close p-1 pr-2" @click="locationError = null" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
                     </div>
-                </form>
 
-                <hr />
-                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <form id="goto-coords" v-on:submit.prevent="gotoLocation" class="mb-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="gotoLatLon" placeholder="lat,lon" />
+                            <div class="input-group-append">
+                                <button type="submit" class="btn btn-primary" title="Go to coordinates">Go</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <form id="goto-pluscode" v-on:submit.prevent="findPlusCode" class="mb-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="searchPlusCode" placeholder="Plus Code (e.g. 87G8Q222+)" />
+                            <div class="input-group-append">
+                                <button type="submit" class="btn btn-primary" title="Find Plus Code">Find</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <form id="goto-h3" v-on:submit.prevent="findH3" class="mb-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="searchH3Id" placeholder="valid H3 id" />
+                            <div class="input-group-append">
+                                <button type="submit" class="btn btn-primary" title="Find H3 cell">Find</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <hr class="my-2" />
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <small class="text-muted d-block">H3 Resolution</small>
+                            <span style="font-size: 1.05rem;"><b>Level {{ currentH3Res }}</b></span>
+                            <span v-if="isResLocked" class="badge badge-warning ml-1" title="Resolution is locked to slider value">Locked</span>
+                            <span v-else class="badge badge-light border ml-1 text-muted" title="Resolution auto-shifts with zoom">Auto</span>
+                        </div>
+                        <button type="button" 
+                                class="btn btn-sm py-0 px-2" 
+                                :class="isResLocked ? 'btn-warning' : 'btn-outline-secondary'" 
+                                @click="toggleResLock" 
+                                :title="isResLocked ? 'Unlock zoom to auto-shift H3 resolution' : 'Lock resolution to Level ' + sliderRes">
+                            <i :class="isResLocked ? 'bi bi-lock-fill mr-1' : 'bi bi-unlock mr-1'"></i>
+                            <span>{{ isResLocked ? 'Unlock Zoom' : 'Lock (' + sliderRes + ')' }}</span>
+                        </button>
+                    </div>
+
+                    <div class="mt-2">
+                        <div class="d-flex justify-content-between text-muted" style="font-size: 0.72rem;">
+                            <span>0 <small>(Global)</small></span>
+                            <span><b>Level {{ sliderRes }}</b></span>
+                            <span>15 <small>(Sub-m)</small></span>
+                        </div>
+                        <input type="range" 
+                               class="custom-range" 
+                               min="0" 
+                               max="15" 
+                               step="1" 
+                               v-model.number="sliderRes" 
+                               @input="onSliderInput" 
+                               title="Slide to lock H3 resolution level (0 to 15)" />
+                    </div>
+
+                    <div v-if="tooManyCells && isResLocked" class="mt-2 p-2 bg-light border rounded text-warning small">
+                        <i class="bi bi-exclamation-triangle-fill mr-1"></i>
+                        <span>Zoom in closer to render Level {{ currentH3Res }} cells</span>
+                    </div>
+                    <hr class="my-2" />
                     <div>
-                        <small class="text-muted d-block">H3 Resolution</small>
-                        <span style="font-size: 1.1rem;"><b>Level {{ currentH3Res }}</b></span>
-                        <span v-if="isResLocked" class="badge badge-warning ml-1" title="Resolution is locked to slider value">Locked</span>
-                        <span v-else class="badge badge-light border ml-1 text-muted" title="Resolution auto-shifts with zoom">Auto</span>
-                    </div>
-                    <button type="button" 
-                            class="btn btn-sm" 
-                            :class="isResLocked ? 'btn-warning' : 'btn-outline-secondary'" 
-                            @click="toggleResLock" 
-                            :title="isResLocked ? 'Unlock zoom to auto-shift H3 resolution' : 'Lock resolution to Level ' + sliderRes">
-                        <i :class="isResLocked ? 'bi bi-lock-fill mr-1' : 'bi bi-unlock mr-1'"></i>
-                        <span>{{ isResLocked ? 'Unlock Zoom' : 'Lock (' + sliderRes + ')' }}</span>
-                    </button>
-                </div>
-
-                <div class="mt-2">
-                    <div class="d-flex justify-content-between text-muted" style="font-size: 0.75rem;">
-                        <span>0 <small>(Global)</small></span>
-                        <span><b>Level {{ sliderRes }}</b></span>
-                        <span>15 <small>(Sub-m)</small></span>
-                    </div>
-                    <input type="range" 
-                           class="custom-range" 
-                           min="0" 
-                           max="15" 
-                           step="1" 
-                           v-model.number="sliderRes" 
-                           @input="onSliderInput" 
-                           title="Slide to lock H3 resolution level (0 to 15)" />
-                </div>
-
-                <div v-if="tooManyCells && isResLocked" class="mt-2 p-2 bg-light border rounded text-warning small">
-                    <i class="bi bi-exclamation-triangle-fill mr-1"></i>
-                    <span>Zoom in closer to render Level {{ currentH3Res }} cells</span>
-                </div>
-                <hr />
-                <div>
-                    <small class="text-muted">Click an H3 cell to copy its id as:</small>
-                    <div class="mt-1">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="formatOptions" id="formatString" :value="false" v-model="useIntegerFormat">
-                            <label class="form-check-label" for="formatString"><small class="text-muted">String</small></label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="formatOptions" id="formatInteger" :value="true" v-model="useIntegerFormat">
-                            <label class="form-check-label" for="formatInteger"><small class="text-muted">Integer</small></label>
+                        <small class="text-muted">Click an H3 cell to copy its id as:</small>
+                        <div class="mt-1">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="formatOptions" id="formatString" :value="false" v-model="useIntegerFormat">
+                                <label class="form-check-label" for="formatString"><small class="text-muted">String</small></label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="formatOptions" id="formatInteger" :value="true" v-model="useIntegerFormat">
+                                <label class="form-check-label" for="formatInteger"><small class="text-muted">Integer</small></label>
+                            </div>
                         </div>
                     </div>
                 </div>
