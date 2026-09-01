@@ -174,6 +174,7 @@ var app = new Vue({
                 if (map.hasLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
                 if (!map.hasLayer(streetLayer)) streetLayer.addTo(map);
             }
+            this.updateMapDisplay();
         },
 
         h3ToInteger: function(h3id) {
@@ -568,12 +569,28 @@ var app = new Vue({
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
             });
 
-            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 minZoom: 2,
                 maxNativeZoom: 19,
                 maxZoom: 24,
                 attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
             });
+
+            const satelliteTransportation = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+                minZoom: 2,
+                maxNativeZoom: 19,
+                maxZoom: 24,
+                attribution: 'Roads &copy; Esri'
+            });
+
+            const satelliteBoundaries = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+                minZoom: 2,
+                maxNativeZoom: 19,
+                maxZoom: 24,
+                attribution: 'Boundaries &copy; Esri'
+            });
+
+            satelliteLayer = L.layerGroup([satelliteImagery, satelliteTransportation, satelliteBoundaries]);
 
             if (this.currentLayer === 'satellite') {
                 satelliteLayer.addTo(map);
