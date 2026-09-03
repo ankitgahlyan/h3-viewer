@@ -143,6 +143,7 @@ var app = new Vue({
         locationError: null,
         permissionState: 'unknown',
         showPermissionModal: false,
+        isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
         isH3LayerVisible: queryParams.h3layer !== undefined ? (queryParams.h3layer === '1' || queryParams.h3layer === 'true') : true,
         isResLocked: queryParams.lockRes !== undefined ? (queryParams.lockRes === '1' || queryParams.lockRes === 'true') : true,
         lockedRes: 9,
@@ -797,6 +798,10 @@ var app = new Vue({
                     });
                 });
             }
+
+            // Monitor online/offline network state
+            window.addEventListener('online', () => { this.isOffline = false; });
+            window.addEventListener('offline', () => { this.isOffline = true; });
 
             // Initialize Permission Monitoring (silently query status)
             this.initPermissions();

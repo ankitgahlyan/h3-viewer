@@ -1,0 +1,19 @@
+{
+  "name": "Uber H3 Viewer",
+  "short_name": "H3 Viewer",
+  "description": "Interactive Uber H3 hexagon spatial index viewer with offline map cache",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#212529",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./hex.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
