@@ -143,6 +143,7 @@ var app = new Vue({
         locationError: null,
         permissionState: 'unknown',
         showPermissionModal: false,
+        isH3LayerVisible: queryParams.h3layer !== undefined ? (queryParams.h3layer === '1' || queryParams.h3layer === 'true') : true,
         isResLocked: queryParams.lockRes !== undefined ? (queryParams.lockRes === '1' || queryParams.lockRes === 'true') : true,
         lockedRes: 9,
         tooManyCells: false,
@@ -387,6 +388,11 @@ var app = new Vue({
             this.updateMapDisplay();
         },
 
+        toggleH3Layer: function() {
+            this.isH3LayerVisible = !this.isH3LayerVisible;
+            this.updateMapDisplay();
+        },
+
         computeAverageEdgeLengthInMeters: function(vertexLocations) {
             let totalLength = 0;
             let edgeCount = 0;
@@ -403,6 +409,10 @@ var app = new Vue({
         updateMapDisplay: function() {
             if (hexLayer) {
                 hexLayer.remove();
+            }
+
+            if (!this.isH3LayerVisible) {
+                return;
             }
 
             hexLayer = L.layerGroup().addTo(map);

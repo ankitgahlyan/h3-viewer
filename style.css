@@ -183,5 +183,69 @@ html, body {
     padding: 8px 10px;
 }
 
+/* H3 Layer Toggle Button (near zoom controls) */
+.leaflet-control-h3-container {
+    position: fixed;
+    top: 82px;
+    left: 10px;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.leaflet-control-h3-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background-color: #ffffff;
+    color: #333333;
+    text-align: center;
+    text-decoration: none !important;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.leaflet-control-h3-toggle:hover {
+    background-color: #f4f4f4;
+}
+
+.leaflet-control-h3-toggle:active {
+    background-color: #e9ecef;
+    transform: scale(0.96);
+}
+
+.leaflet-control-h3-toggle.h3-layer-hidden {
+    background-color: #f8f9fa;
+}
+
+.leaflet-control-h3-toggle.h3-layer-hidden i {
+    opacity: 0.6;
+}
+
+.leaflet-control-h3-toggle i {
+    font-size: 15px;
+    line-height: 1;
+}
+
+@media (max-width: 576px) {
+    .leaflet-control-h3-container {
+        top: 86px;
+        left: 8px;
+    }
+
+    .leaflet-control-h3-toggle {
+        width: 34px;
+        height: 34px;
+    }
+
+    .leaflet-control-h3-toggle i {
+        font-size: 17px;
+    }
+}
+
+
 
 

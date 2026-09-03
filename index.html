@@ -23,6 +23,21 @@
 
             <div id="mapid" class="fillScreen"></div>
 
+            <!-- Top-Left Map Control: Toggle H3 Hex Layer (near Zoom controls) -->
+            <div class="leaflet-control-h3-container">
+                <div class="leaflet-bar leaflet-control shadow-sm">
+                    <a href="#" 
+                       class="leaflet-control-h3-toggle" 
+                       :class="{ 'h3-layer-visible': isH3LayerVisible, 'h3-layer-hidden': !isH3LayerVisible }"
+                       @click.prevent.stop="toggleH3Layer" 
+                       :title="isH3LayerVisible ? 'Hide H3 Grid Layer' : 'Show H3 Grid Layer'" 
+                       role="button" 
+                       aria-label="Toggle H3 Hex Layer">
+                        <i class="bi" :class="isH3LayerVisible ? 'bi-hexagon-fill text-primary' : 'bi-hexagon text-muted'"></i>
+                    </a>
+                </div>
+            </div>
+
             <div class="toolbox-container" 
                  @mouseenter="onToolboxHover(true)" 
                  @mouseleave="onToolboxHover(false)">
