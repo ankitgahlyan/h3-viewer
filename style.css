@@ -171,4 +171,17 @@ html, body {
     }
 }
 
+/* Permission Guidance Styles */
+.permission-guide-list {
+    line-height: 1.45;
+}
+
+.permission-guide-item {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+
 

@@ -141,6 +141,8 @@ var app = new Vue({
         useIntegerFormat: !!queryParams.useIntegerFormat,
         isLocating: false,
         locationError: null,
+        permissionState: 'unknown',
+        showPermissionModal: false,
         isResLocked: queryParams.lockRes !== undefined ? (queryParams.lockRes === '1' || queryParams.lockRes === 'true') : true,
         lockedRes: 9,
         tooManyCells: false,
@@ -175,6 +177,67 @@ var app = new Vue({
     },
 
     methods: {
+
+        openPermissionModal: function() {
+            this.showPermissionModal = true;
+        },
+
+        closePermissionModal: function() {
+            this.showPermissionModal = false;
+        },
+
+        initPermissions: function() {
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'geolocation' })
+                    .then((status) => {
+                        this.permissionState = status.state;
+                        status.onchange = () => {
+                            const prevState = this.permissionState;
+                            this.permissionState = status.state;
+                            if (status.state === 'granted') {
+                                this.showPermissionModal = false;
+                                this.locationError = null;
+                                if (prevState === 'denied' || prevState === 'prompt') {
+                                    this.goToCurrentLocation({ silent: false });
+                                }
+                            } else if (status.state === 'denied') {
+                                this.permissionState = 'denied';
+                            }
+                        };
+                    })
+                    .catch(() => {
+                        this.permissionState = 'unknown';
+                    });
+            } else {
+                this.permissionState = (!navigator.geolocation) ? 'unsupported' : 'unknown';
+            }
+
+            // Check permissions when user switches back to this tab
+            window.addEventListener('focus', () => {
+                this.checkPermissionState();
+            });
+        },
+
+        checkPermissionState: async function() {
+            if (navigator.permissions && navigator.permissions.query) {
+                try {
+                    const status = await navigator.permissions.query({ name: 'geolocation' });
+                    const prevState = this.permissionState;
+                    this.permissionState = status.state;
+                    if (status.state === 'granted') {
+                        this.showPermissionModal = false;
+                        this.locationError = null;
+                        if (prevState === 'denied') {
+                            this.goToCurrentLocation({ silent: false });
+                        }
+                    }
+                } catch (e) {}
+            }
+        },
+
+        requestPermissionAgain: function() {
+            this.goToCurrentLocation({ interactive: true, forcePrompt: true });
+        },
 
         openSettings: function() {
             this.showSettings = true;
@@ -471,10 +534,17 @@ var app = new Vue({
             }
         },
 
-        goToCurrentLocation: function() {
+        goToCurrentLocation: function(options = {}) {
             if (!navigator.geolocation) {
                 this.locationError = "Geolocation is not supported by your browser.";
+                this.permissionState = 'unsupported';
                 return;
+            }
+
+            // If permission was already denied and this is not a forced check, show help modal
+            if (this.permissionState === 'denied' && !options.forcePrompt) {
+                this.showPermissionModal = true;
+                this.locationError = "Location permission was denied earlier. Please enable it in browser settings.";
             }
 
             this.isLocating = true;
@@ -483,6 +553,9 @@ var app = new Vue({
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     this.isLocating = false;
+                    this.permissionState = 'granted';
+                    this.showPermissionModal = false;
+                    this.locationError = null;
                     const { latitude, longitude, accuracy } = position.coords;
                     this.gotoLatLon = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
@@ -533,7 +606,11 @@ var app = new Vue({
                     this.isLocating = false;
                     switch (error.code) {
                         case error.PERMISSION_DENIED:
+                            this.permissionState = 'denied';
                             this.locationError = "Location permission was denied. Please enable location permissions in your browser settings.";
+                            if (options.interactive || options.onStartup || options.forcePrompt) {
+                                this.showPermissionModal = true;
+                            }
                             break;
                         case error.POSITION_UNAVAILABLE:
                             this.locationError = "Location information is unavailable.";
@@ -647,7 +724,9 @@ var app = new Vue({
     },
 
     mounted() {
-        document.addEventListener("DOMContentLoaded", () => {
+        const init = () => {
+            if (map) return;
+
             const southWest = L.latLng(-90, -179.999);
             const northEast = L.latLng(90, 179.999);
             const bounds = L.latLngBounds(southWest, northEast);
@@ -713,19 +792,49 @@ var app = new Vue({
                 });
             }
 
-            const { h3 } = queryParams;
-            if (h3) {
-                this.searchH3Id = h3;
-                window.setTimeout(() => this.findH3(), 50);
-            }
+            // Initialize Permission Monitoring
+            this.initPermissions();
 
-            const plusCode = queryParams.pluscode || queryParams.plusCode || queryParams.olc;
-            if (plusCode) {
-                this.searchPlusCode = plusCode;
-                window.setTimeout(() => this.findPlusCode(), 50);
+            const hasExplicitLocation = queryParams.h3 || queryParams.pluscode || queryParams.plusCode || queryParams.olc || (queryParams.lat !== undefined && queryParams.lng !== undefined);
+
+            if (hasExplicitLocation) {
+                const { h3 } = queryParams;
+                if (h3) {
+                    this.searchH3Id = h3;
+                    window.setTimeout(() => this.findH3(), 50);
+                }
+
+                const plusCode = queryParams.pluscode || queryParams.plusCode || queryParams.olc;
+                if (plusCode) {
+                    this.searchPlusCode = plusCode;
+                    window.setTimeout(() => this.findPlusCode(), 50);
+                }
+            } else {
+                // On startup with no explicit target, ask for necessary location permissions and locate
+                if (navigator.permissions && navigator.permissions.query) {
+                    navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+                        this.permissionState = status.state;
+                        if (status.state === 'granted' || status.state === 'prompt') {
+                            this.goToCurrentLocation({ onStartup: true });
+                        } else if (status.state === 'denied') {
+                            this.showPermissionModal = true;
+                            this.locationError = "Location permission was denied earlier. Please enable it in browser settings.";
+                        }
+                    }).catch(() => {
+                        this.goToCurrentLocation({ onStartup: true });
+                    });
+                } else {
+                    this.goToCurrentLocation({ onStartup: true });
+                }
             }
 
             this.updateMapDisplay();
-        });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener("DOMContentLoaded", init);
+        } else {
+            init();
+        }
     }
 });

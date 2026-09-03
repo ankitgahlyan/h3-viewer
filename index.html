@@ -57,10 +57,15 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn btn-outline-danger btn-block mb-2 d-flex align-items-center justify-content-center" @click="goToCurrentLocation" :disabled="isLocating" title="Get current location and show Level 9 H3 cell with red pin">
+                    <button type="button" 
+                            class="btn btn-outline-danger btn-block mb-2 d-flex align-items-center justify-content-center" 
+                            @click="goToCurrentLocation({ interactive: true })" 
+                            :disabled="isLocating" 
+                            :title="permissionState === 'denied' ? 'Location permission denied - Click for instructions to enable' : 'Get current location and show Level 9 H3 cell with red pin'">
                         <span v-if="isLocating" class="spinner-border spinner-border-sm mr-2 text-danger" role="status" aria-hidden="true"></span>
                         <i v-else class="bi bi-geo-alt-fill text-danger mr-2"></i>
                         <span>{{ isLocating ? 'Locating...' : 'My Location (Res 9)' }}</span>
+                        <span v-if="permissionState === 'denied'" class="badge badge-warning ml-2 font-weight-bold" style="font-size: 0.7rem;">Blocked</span>
                     </button>
 
                     <!-- Map Layer Switcher -->
@@ -80,7 +85,12 @@
                     </div>
 
                     <div v-if="locationError" class="alert alert-danger alert-dismissible fade show p-2 mb-3" role="alert" style="font-size: 0.82rem;">
-                        {{ locationError }}
+                        <div>{{ locationError }}</div>
+                        <div v-if="permissionState === 'denied'" class="mt-1">
+                            <a href="#" class="alert-link font-weight-bold" @click.prevent="openPermissionModal">
+                                <i class="bi bi-shield-lock mr-1"></i>How to enable permission &rarr;
+                            </a>
+                        </div>
                         <button type="button" class="close p-1 pr-2" @click="locationError = null" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
@@ -138,13 +148,13 @@
                             <span>15 <small>(Sub-m)</small></span>
                         </div>
                         <input type="range" 
-                               class="custom-range" 
-                               min="0" 
-                               max="15" 
-                               step="1" 
-                               v-model.number="sliderRes" 
-                               @input="onSliderInput" 
-                               title="Slide to lock H3 resolution level (0 to 15)" />
+                                class="custom-range" 
+                                min="0" 
+                                max="15" 
+                                step="1" 
+                                v-model.number="sliderRes" 
+                                @input="onSliderInput" 
+                                title="Slide to lock H3 resolution level (0 to 15)" />
                     </div>
 
                     <div v-if="tooManyCells && isResLocked" class="mt-2 p-2 bg-light border rounded text-warning small">
@@ -163,6 +173,70 @@
                                 <input class="form-check-input" type="radio" name="formatOptions" id="formatInteger" :value="true" v-model="useIntegerFormat">
                                 <label class="form-check-label" for="formatInteger"><small class="text-muted">Integer</small></label>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location Permission Guidance Modal -->
+            <div v-if="showPermissionModal" class="settings-modal-backdrop" @click.self="closePermissionModal">
+                <div class="settings-modal-card shadow-lg" style="max-width: 440px;">
+                    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                        <h6 class="mb-0 font-weight-bold text-dark d-flex align-items-center">
+                            <i class="bi bi-geo-alt-fill text-danger mr-2" style="font-size: 1.15rem;"></i> Location Access Needed
+                        </h6>
+                        <button type="button" class="close text-secondary" @click="closePermissionModal" aria-label="Close" title="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="small text-muted mb-2">
+                            Location permission is needed to automatically center on your position and display your local Level 9 H3 hex cell.
+                        </p>
+
+                        <div class="p-3 bg-light rounded border mb-3">
+                            <div class="small font-weight-bold mb-2 text-dark">
+                                <i class="bi bi-shield-lock-fill text-primary mr-1"></i> How to enable location in your browser:
+                            </div>
+                            
+                            <div class="permission-guide-list small text-secondary">
+                                <div class="permission-guide-item mb-2">
+                                    <div class="font-weight-bold text-dark mb-1">
+                                        <i class="bi bi-globe mr-1 text-primary"></i> Chrome / Edge / Brave
+                                    </div>
+                                    <div>Click the <b>site settings icon</b> (<i class="bi bi-sliders text-dark"></i> or <i class="bi bi-lock-fill text-dark"></i>) next to the address bar &rarr; Set <b>Location</b> to <b>Allow</b>.</div>
+                                </div>
+                                <div class="permission-guide-item mb-2">
+                                    <div class="font-weight-bold text-dark mb-1">
+                                        <i class="bi bi-apple mr-1 text-secondary"></i> Safari (iOS / macOS)
+                                    </div>
+                                    <div>Tap <b>aA</b> / <b>Settings</b> &rarr; <b>Website Settings</b> &rarr; Set <b>Location</b> to <b>Allow</b>.</div>
+                                </div>
+                                <div class="permission-guide-item">
+                                    <div class="font-weight-bold text-dark mb-1">
+                                        <i class="bi bi-compass mr-1 text-danger"></i> Firefox
+                                    </div>
+                                    <div>Click the permissions icon next to the URL &rarr; Clear <b>Blocked</b> status.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <button type="button" 
+                                    class="btn btn-primary btn-block mb-2 font-weight-bold" 
+                                    @click="requestPermissionAgain"
+                                    :disabled="isLocating">
+                                <span v-if="isLocating" class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                                <i v-else class="bi bi-arrow-clockwise mr-1"></i>
+                                <span>{{ isLocating ? 'Checking location...' : 'Try Again / Check Permission' }}</span>
+                            </button>
+
+                            <button type="button" 
+                                    class="btn btn-outline-secondary btn-block btn-sm" 
+                                    @click="closePermissionModal">
+                                Continue with Default View
+                            </button>
                         </div>
                     </div>
                 </div>
