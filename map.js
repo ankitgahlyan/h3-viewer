@@ -192,12 +192,11 @@ var app = new Vue({
                     .then((status) => {
                         this.permissionState = status.state;
                         status.onchange = () => {
-                            const prevState = this.permissionState;
                             this.permissionState = status.state;
                             if (status.state === 'granted') {
-                                this.showPermissionModal = false;
-                                this.locationError = null;
-                                if (prevState === 'denied' || prevState === 'prompt') {
+                                if (this.showPermissionModal) {
+                                    this.showPermissionModal = false;
+                                    this.locationError = null;
                                     this.goToCurrentLocation({ silent: false });
                                 }
                             } else if (status.state === 'denied') {
@@ -222,14 +221,11 @@ var app = new Vue({
             if (navigator.permissions && navigator.permissions.query) {
                 try {
                     const status = await navigator.permissions.query({ name: 'geolocation' });
-                    const prevState = this.permissionState;
                     this.permissionState = status.state;
-                    if (status.state === 'granted') {
+                    if (status.state === 'granted' && this.showPermissionModal) {
                         this.showPermissionModal = false;
                         this.locationError = null;
-                        if (prevState === 'denied') {
-                            this.goToCurrentLocation({ silent: false });
-                        }
+                        this.goToCurrentLocation({ silent: false });
                     }
                 } catch (e) {}
             }
@@ -541,10 +537,11 @@ var app = new Vue({
                 return;
             }
 
-            // If permission was already denied and this is not a forced check, show help modal
+            // If permission was already denied and this is not a forced check, show help modal immediately
             if (this.permissionState === 'denied' && !options.forcePrompt) {
                 this.showPermissionModal = true;
-                this.locationError = "Location permission was denied earlier. Please enable it in browser settings.";
+                this.locationError = "Location permission is denied or blocked. Please enable it in your browser settings.";
+                return;
             }
 
             this.isLocating = true;
@@ -608,12 +605,11 @@ var app = new Vue({
                         case error.PERMISSION_DENIED:
                             this.permissionState = 'denied';
                             this.locationError = "Location permission was denied. Please enable location permissions in your browser settings.";
-                            if (options.interactive || options.onStartup || options.forcePrompt) {
-                                this.showPermissionModal = true;
-                            }
+                            this.showPermissionModal = true;
                             break;
                         case error.POSITION_UNAVAILABLE:
-                            this.locationError = "Location information is unavailable.";
+                            this.locationError = "Location information is unavailable. Please turn on device location/GPS.";
+                            this.showPermissionModal = true;
                             break;
                         case error.TIMEOUT:
                             this.locationError = "Location request timed out. Please try again.";
@@ -792,7 +788,7 @@ var app = new Vue({
                 });
             }
 
-            // Initialize Permission Monitoring
+            // Initialize Permission Monitoring (silently query status)
             this.initPermissions();
 
             const hasExplicitLocation = queryParams.h3 || queryParams.pluscode || queryParams.plusCode || queryParams.olc || (queryParams.lat !== undefined && queryParams.lng !== undefined);
@@ -808,23 +804,6 @@ var app = new Vue({
                 if (plusCode) {
                     this.searchPlusCode = plusCode;
                     window.setTimeout(() => this.findPlusCode(), 50);
-                }
-            } else {
-                // On startup with no explicit target, ask for necessary location permissions and locate
-                if (navigator.permissions && navigator.permissions.query) {
-                    navigator.permissions.query({ name: 'geolocation' }).then((status) => {
-                        this.permissionState = status.state;
-                        if (status.state === 'granted' || status.state === 'prompt') {
-                            this.goToCurrentLocation({ onStartup: true });
-                        } else if (status.state === 'denied') {
-                            this.showPermissionModal = true;
-                            this.locationError = "Location permission was denied earlier. Please enable it in browser settings.";
-                        }
-                    }).catch(() => {
-                        this.goToCurrentLocation({ onStartup: true });
-                    });
-                } else {
-                    this.goToCurrentLocation({ onStartup: true });
                 }
             }
 

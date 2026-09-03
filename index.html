@@ -183,7 +183,7 @@
                 <div class="settings-modal-card shadow-lg" style="max-width: 440px;">
                     <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
                         <h6 class="mb-0 font-weight-bold text-dark d-flex align-items-center">
-                            <i class="bi bi-geo-alt-fill text-danger mr-2" style="font-size: 1.15rem;"></i> Location Access Needed
+                            <i class="bi bi-geo-alt-fill text-danger mr-2" style="font-size: 1.15rem;"></i> Enable Location Access
                         </h6>
                         <button type="button" class="close text-secondary" @click="closePermissionModal" aria-label="Close" title="Close">
                             <span aria-hidden="true">&times;</span>
@@ -192,18 +192,24 @@
 
                     <div class="mb-3">
                         <p class="small text-muted mb-2">
-                            Location permission is needed to automatically center on your position and display your local Level 9 H3 hex cell.
+                            Location access is needed to find your coordinates and display your local Level 9 H3 hex cell.
                         </p>
 
                         <div class="p-3 bg-light rounded border mb-3">
                             <div class="small font-weight-bold mb-2 text-dark">
-                                <i class="bi bi-shield-lock-fill text-primary mr-1"></i> How to enable location in your browser:
+                                <i class="bi bi-shield-lock-fill text-primary mr-1"></i> How to enable location:
                             </div>
                             
                             <div class="permission-guide-list small text-secondary">
                                 <div class="permission-guide-item mb-2">
                                     <div class="font-weight-bold text-dark mb-1">
-                                        <i class="bi bi-globe mr-1 text-primary"></i> Chrome / Edge / Brave
+                                        <i class="bi bi-phone mr-1 text-success"></i> 1. Device Location
+                                    </div>
+                                    <div>Make sure <b>Location / GPS</b> is turned ON in your device system settings.</div>
+                                </div>
+                                <div class="permission-guide-item mb-2">
+                                    <div class="font-weight-bold text-dark mb-1">
+                                        <i class="bi bi-globe mr-1 text-primary"></i> 2. Chrome / Edge / Brave
                                     </div>
                                     <div>Click the <b>site settings icon</b> (<i class="bi bi-sliders text-dark"></i> or <i class="bi bi-lock-fill text-dark"></i>) next to the address bar &rarr; Set <b>Location</b> to <b>Allow</b>.</div>
                                 </div>
@@ -225,17 +231,17 @@
                         <div>
                             <button type="button" 
                                     class="btn btn-primary btn-block mb-2 font-weight-bold" 
-                                    @click="requestPermissionAgain"
+                                    @click="requestPermissionAgain" 
                                     :disabled="isLocating">
                                 <span v-if="isLocating" class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
                                 <i v-else class="bi bi-arrow-clockwise mr-1"></i>
-                                <span>{{ isLocating ? 'Checking location...' : 'Try Again / Check Permission' }}</span>
+                                <span>{{ isLocating ? 'Checking location...' : 'Try Again / Grant Permission' }}</span>
                             </button>
 
                             <button type="button" 
                                     class="btn btn-outline-secondary btn-block btn-sm" 
                                     @click="closePermissionModal">
-                                Continue with Default View
+                                Dismiss
                             </button>
                         </div>
                     </div>
